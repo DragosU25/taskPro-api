@@ -6,7 +6,7 @@ const senderEmail = process.env.EMAIL;
 
 const sendVerificationEmail = async email => {
   const verificationToken = uuidv4();
-  const verificationUrl = `http://localhost:5000/api/auth/verify/${verificationToken}`;
+  const verificationUrl = `https://taskpro-api-ca4u.onrender.com/api/auth/verify/${verificationToken}`;
 
   if (!senderEmail) throw new Error('Sender email is missing.');
 
