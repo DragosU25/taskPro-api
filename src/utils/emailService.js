@@ -1,19 +1,19 @@
-const sgMail = require("@sendgrid/mail");
-const { v4: uuidv4 } = require("uuid");
-require("dotenv").config();
+const sgMail = require('@sendgrid/mail');
+const { v4: uuidv4 } = require('uuid');
+require('dotenv').config();
 
 const senderEmail = process.env.EMAIL;
 
-const sendVerificationEmail = async (email) => {
+const sendVerificationEmail = async email => {
   const verificationToken = uuidv4();
-  const verificationUrl = `http://localhost:5000/api/auth/verify/${verificationToken}`;
+  const verificationUrl = `https://taskpro-api-ca4u.onrender.com/api/auth/verify/${verificationToken}`;
 
-  if (!senderEmail) throw new Error("Sender email is missing.");
+  if (!senderEmail) throw new Error('Sender email is missing.');
 
   const msg = {
     to: email,
     from: senderEmail,
-    subject: "Account Verification Email",
+    subject: 'Account Verification Email',
     text: `Verify your account here: ${verificationUrl}`,
     html: `
       <!DOCTYPE html>
