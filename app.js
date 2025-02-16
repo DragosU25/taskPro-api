@@ -39,7 +39,7 @@ app.use(cors());
 app.use(express.json());
 
 // Apply rate limiter to all requests
-// app.use(limiter);
+app.use(limiter);
 
 // Use Helmet
 app.use(helmet());
