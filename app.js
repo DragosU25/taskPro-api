@@ -28,12 +28,7 @@ sgMail.setApiKey(sendGridApiKey);
 connectDB();
 
 // CORS
-app.use(
-  cors({
-    origin: ['https://taskpro-frontend.onrender.com', 'http://localhost:5000'],
-    credentials: true,
-  })
-);
+app.use(cors());
 
 // Middleware-uri globale
 app.use(express.json());
