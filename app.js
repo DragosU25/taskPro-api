@@ -30,7 +30,7 @@ connectDB();
 // CORS
 app.use(
   cors({
-    origin: ['https://taskpro-frontend.onrender.com', 'http://localhost:3000'],
+    origin: ['https://taskpro-frontend.onrender.com', 'http://localhost:5000'],
     credentials: true,
   })
 );
