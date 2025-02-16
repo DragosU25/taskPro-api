@@ -1,180 +1,170 @@
+const Card = require("../models/cardSchema");
 const Column = require("../models/columnSchema");
 const mongoose = require("mongoose");
-const Card = require("../models/cardSchema"); // Asigură-te că importi schema pentru Card
 
-exports.createCard = async (
-  columnId,
-  { cardName, cardDescription, cardPriority, deadlineDate }
-) => {
-  // Verifică validitatea ObjectId pentru columnId
-  if (!mongoose.Types.ObjectId.isValid(columnId)) {
-    throw new Error("Invalid column ID");
-  }
-
-  // Căutăm coloana în baza de date
-  const column = await Column.findById(columnId);
-  if (!column) {
-    throw new Error("Column not found");
-  }
-
-  // Creăm un nou card cu columnId
-  const newCard = new Card({
-    cardName,
-    cardDescription,
-    cardPriority,
-    deadlineDate,
-    columnId, // Include columnId în documentul cardului
-  });
-
-  console.log("recived data", newCard);
-  // Salvăm cardul în colecția Card
-  await newCard.save();
-
-  // Adăugăm ID-ul cardului la array-ul columnCards al coloanei
-  column.columnCards.push(newCard._id);
-
-  // Salvăm coloana actualizată
-  await column.save();
-
-  return newCard; // Returnăm cardul nou creat
-};
-
-exports.getCards = async (columnId) => {
-  // Verifică validitatea ObjectId pentru columnId
-  if (!mongoose.Types.ObjectId.isValid(columnId)) {
-    throw new Error("Invalid column ID");
-  }
-
-  // Găsește toate cardurile asociate cu columnId
-  const cards = await Card.find({ columnId });
-
-  return cards; // Returnează toate cardurile pentru această coloană
-};
-
-exports.editCard = async (columnId, cardId, updateData) => {
-  // Verifică validitatea ObjectId pentru projectId și cardId
-  if (
-    !mongoose.Types.ObjectId.isValid(columnId) ||
-    !mongoose.Types.ObjectId.isValid(cardId)
-  ) {
-    throw new Error("Invalid project or card ID");
-  }
-
-  // Căutăm proiectul în baza de date și populăm cardurile
-  const column = await Column.findById(columnId).populate("columnCards");
-  if (!column) {
-    throw new Error("Project not found");
-  }
-
-  // Găsim cardul din array-ul projectCard folosind ID-ul cardului
-  const card = column.columnCards.find(
-    (card) => card._id.toString() === cardId
-  );
-  if (!card) {
-    throw new Error("Card not found");
-  }
-
-  // Actualizăm doar câmpurile care sunt incluse în updateData
-  Object.keys(updateData).forEach((key) => {
-    if (updateData[key] !== undefined) {
-      card[key] = updateData[key];
+class CardService {
+  async createCard(columnId, cardData) {
+    if (!mongoose.Types.ObjectId.isValid(columnId)) {
+      throw new Error("Invalid column ID format");
     }
-  });
-  console.log("updated data", updateData);
-  // Salvăm proiectul cu cardul actualizat
-  await column.save();
 
-  // Returnăm cardul actualizat
-  return card;
-};
+    const column = await Column.findById(columnId);
+    if (!column) {
+      throw new Error("Column not found");
+    }
 
-exports.moveCard = async (cardId, fromColumnId, toColumnId) => {
-  try {
-    const fromColumn = await Column.findById(fromColumnId);
-    const toColumn = await Column.findById(toColumnId);
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-    console.log("🔍 Checking columns...");
-    console.log("From Column:", fromColumn);
-    console.log("To Column:", toColumn);
-    console.log("Cards in fromColumn:", fromColumn.columnCards);
+    try {
+      const newCard = new Card({
+        ...cardData,
+        columnId,
+      });
 
-    // Verificăm dacă există coloanele
-    if (!fromColumn || !toColumn) {
+      await newCard.save({ session });
+
+      column.columnCards.push(newCard._id);
+      await column.save({ session });
+
+      await session.commitTransaction();
+      return newCard;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
+  async getCards(columnId) {
+    if (!mongoose.Types.ObjectId.isValid(columnId)) {
+      throw new Error("Invalid column ID format");
+    }
+
+    const cards = await Card.find({ columnId }).sort({ createdAt: -1 });
+
+    return cards;
+  }
+
+  async editCard(columnId, cardId, updateData) {
+    if (
+      !mongoose.Types.ObjectId.isValid(columnId) ||
+      !mongoose.Types.ObjectId.isValid(cardId)
+    ) {
+      throw new Error("Invalid ID format");
+    }
+
+    const card = await Card.findOne({
+      _id: cardId,
+      columnId: columnId,
+    });
+
+    if (!card) {
+      throw new Error("Card not found");
+    }
+
+    Object.assign(card, updateData);
+    await card.save();
+
+    return card;
+  }
+
+  async moveCard(cardId, fromColumnId, toColumnId) {
+    console.log("cardId:", cardId);
+    console.log("formColumnId", fromColumnId);
+    console.log("toColumnId", toColumnId);
+    if (
+      !mongoose.Types.ObjectId.isValid(cardId) ||
+      !mongoose.Types.ObjectId.isValid(fromColumnId) ||
+      !mongoose.Types.ObjectId.isValid(toColumnId)
+    ) {
+      throw new Error("Invalid ID format");
+    }
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const [card, fromColumn, toColumn] = await Promise.all([
+        Card.findById(cardId),
+        Column.findById(fromColumnId),
+        Column.findById(toColumnId),
+      ]);
+
+      if (!card || !fromColumn || !toColumn) {
+        throw new Error("Card or columns not found");
+      }
+
+      // Update card's column
+      card.columnId = toColumnId;
+      await card.save({ session });
+
+      // Remove from source column
+      fromColumn.columnCards = fromColumn.columnCards.filter(
+        (id) => id.toString() !== cardId.toString()
+      );
+      await fromColumn.save({ session });
+
+      // Add to destination column
+      toColumn.columnCards.push(cardId);
+      await toColumn.save({ session });
+
+      await session.commitTransaction();
+
       return {
-        success: false,
-        status: 404,
-        message: "One or both columns not found",
+        fromColumn: await Column.findById(fromColumnId).populate("columnCards"),
+        toColumn: await Column.findById(toColumnId).populate("columnCards"),
       };
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
+  }
+
+  async deleteCard(columnId, cardId) {
+    if (
+      !mongoose.Types.ObjectId.isValid(columnId) ||
+      !mongoose.Types.ObjectId.isValid(cardId)
+    ) {
+      throw new Error("Invalid ID format");
     }
 
-    // Verificăm dacă cardul există în coloana sursă
-    if (!fromColumn.columnCards.includes(cardId)) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const [card, column] = await Promise.all([
+        Card.findOne({ _id: cardId, columnId }),
+        Column.findById(columnId),
+      ]);
+
+      if (!card || !column) {
+        throw new Error("Card or column not found");
+      }
+
+      await Card.deleteOne({ _id: cardId }, { session });
+
+      column.columnCards = column.columnCards.filter(
+        (id) => id.toString() !== cardId.toString()
+      );
+      await column.save({ session });
+
+      await session.commitTransaction();
+
       return {
-        success: false,
-        status: 404,
-        message: "Card not found in the source column",
+        deletedCardId: cardId,
+        columnCards: column.columnCards,
       };
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
     }
-
-    // Eliminăm cardul din coloana sursă
-    fromColumn.columnCards = fromColumn.columnCards.filter(
-      (id) => id.toString() !== cardId
-    );
-
-    // Adăugăm cardul în coloana de destinație
-    toColumn.columnCards.push(cardId);
-
-    // Salvăm modificările în baza de date
-    await fromColumn.save();
-    await toColumn.save();
-
-    return {
-      data: {
-        fromColumnId,
-        toColumnId,
-        cardId,
-      },
-      success: true,
-      message: "Card moved successfully",
-    };
-  } catch (error) {
-    throw new Error(error.message);
   }
-};
+}
 
-exports.deleteCard = async (columnId, cardId) => {
-  // Verifică validitatea ObjectId pentru projectId și cardId
-  if (
-    !mongoose.Types.ObjectId.isValid(columnId) ||
-    !mongoose.Types.ObjectId.isValid(cardId)
-  ) {
-    throw new Error("Invalid project or card ID");
-  }
-
-  console.log(columnId, cardId);
-
-  // Căutăm proiectul în baza de date
-  const column = await Column.findById(columnId);
-  if (!column) {
-    throw new Error("Project not found");
-  }
-
-  // Căutăm cardul în array-ul projectCard folosind cardId
-  const cardIndex = column.columnCards.findIndex(
-    (card) => card.toString() === cardId
-  );
-
-  if (cardIndex === -1) {
-    throw new Error("Card not found");
-  }
-
-  // Ștergem cardul din array-ul projectCard
-  const deletedCard = column.columnCards.splice(cardIndex, 1)[0];
-
-  // Salvăm proiectul după ce am șters cardul
-  await column.save();
-  const columnCards = column.columnCards;
-
-  // Returnăm cardul șters
-  return { deletedCard, columnCards };
-};
+module.exports = new CardService();

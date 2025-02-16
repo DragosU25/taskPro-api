@@ -75,6 +75,8 @@ exports.getColumns = async (req, res) => {
     const { projectId } = req.params;
 
     const columns = await columnService.getColumns(projectId);
+
+    console.log("API Response from getColumns:", columns);
     res.status(200).json({ success: true, columns });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });

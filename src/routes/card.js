@@ -8,8 +8,7 @@ router.get("/:columnId/getCards", cardController.getCards); // Get all cards for
 router.patch("/:columnId/editCard/:cardId", cardController.editCard); // Edit card in project
 router.delete("/:columnId/deleteCard/:cardId", cardController.deleteCard); // Delete card from project
 router.patch(
-  "/:fromColumnId/moveCard/:cardId/:toColumnId",
+  "/move/:fromColumnId/:cardId/:toColumnId",
   cardController.moveCard
 );
-
 module.exports = router;
