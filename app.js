@@ -50,7 +50,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 //Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/project', projectRoutes);
-const PORT = 'https://taskpro-api-ca4u.onrender.com';
+const PORT = process.env.PORT || 'https://taskpro-api-ca4u.onrender.com';
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
