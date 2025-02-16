@@ -5,6 +5,8 @@ const projectRoutes = require("./src/routes/project");
 const dotenv = require("dotenv");
 const cors = require("cors");
 const path = require("path");
+const swaggerUi = require("swagger-ui-express");
+const specs = require("./swagger");
 
 dotenv.config();
 
@@ -41,6 +43,9 @@ app.use(express.json());
 
 // Use Helmet
 app.use(helmet());
+
+//swagger
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(specs));
 
 //Routes
 app.use("/api/auth", authRoutes);
